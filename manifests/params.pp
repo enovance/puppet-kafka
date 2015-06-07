@@ -15,6 +15,7 @@ class kafka::params {
   $scala_version = '2.10'
   $install_java = true
   $install_dir = "/opt/kafka-${scala_version}-${version}"
+  $install_manage = true
 
   $service_restart = true
 

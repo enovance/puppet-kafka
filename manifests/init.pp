@@ -31,6 +31,9 @@
 # [*package_dir*]
 # The directory to install kafka.
 #
+# [*install_manage*]
+# Should the module manage Kafka installation
+#
 # === Examples
 #
 #
@@ -40,7 +43,8 @@ class kafka (
   $install_dir = '',
   $mirror_url = $kafka::params::mirror_url,
   $install_java = $kafka::params::install_java,
-  $package_dir = $kafka::params::package_dir
+  $package_dir = $kafka::params::package_dir,
+  $install_manage = $kafka::params::install_manage,
 ) inherits kafka::params {
 
   validate_re($::osfamily, 'RedHat|Debian\b', "${::operatingsystem} not supported")
@@ -50,6 +54,7 @@ class kafka (
   validate_re($mirror_url, '^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$', "${mirror_url} is not a valid url")
   validate_bool($install_java)
   validate_absolute_path($package_dir)
+  validate_bool($install_manage)
 
   $basefilename = "kafka_${scala_version}-${version}.tgz"
   $basename = regsubst($basefilename, '(.+)\.tgz$', '\1')
@@ -61,68 +66,70 @@ class kafka (
     $install_directory = $install_dir
   }
 
-  if $install_java {
-    class { 'java':
-      distribution => 'jdk'
-    }
-  }
-
-  ensure_resource('package','wget', { 'ensure' => 'present' })
-
-  group { 'kafka':
-    ensure => present
-  }
-
-  user { 'kafka':
-    ensure  => present,
-    shell   => '/bin/bash',
-    require => Group['kafka']
-  }
-
-  file { $package_dir:
-    ensure => 'directory',
-    owner  => 'kafka',
-    group  => 'kafka'
-  }
-
-  file { $install_directory:
-    ensure => directory,
-    owner  => 'kafka',
-    group  => 'kafka',
-    alias  => 'kafka-app-dir'
-  }
-
-  file { '/opt/kafka':
-    ensure => link,
-    target => $install_directory
-  }
-
-  file { '/opt/kafka/config':
-    ensure  => directory,
-    owner   => 'kafka',
-    group   => 'kafka',
-    require => File['/opt/kafka']
-  }
-
   file { '/var/log/kafka':
     ensure => directory,
-    owner  => 'kafka',
-    group  => 'kafka'
+    owner  => 'root',
+    group  => 'root'
   }
 
-  exec { 'download-kafka-package':
-    command => "wget -O ${package_dir}/${basefilename} ${package_url} 2> /dev/null",
-    path    => ['/usr/bin', '/bin'],
-    creates => "${package_dir}/${basefilename}",
-    require => [ File[$package_dir], Package['wget'] ]
-  }
+  if $install_manage {
+    if $install_java {
+      class { 'java':
+        distribution => 'jdk'
+      }
+    }
 
-  exec { 'untar-kafka-package':
-    command => "tar xfvz ${package_dir}/${basefilename} -C ${install_directory} --strip-components=1",
-    creates => "${install_directory}/LICENSE",
-    alias   => 'untar-kafka',
-    require => [ Exec['download-kafka-package'], File['kafka-app-dir'] ],
-    user    => 'kafka',
-    path    => ['/bin', '/usr/bin', '/usr/sbin']
+    ensure_resource('package','wget', { 'ensure' => 'present' })
+
+    group { 'kafka':
+      ensure => present
+    }
+
+    user { 'kafka':
+      ensure  => present,
+      shell   => '/bin/bash',
+      require => Group['kafka']
+    }
+
+    file { $package_dir:
+      ensure => 'directory',
+      owner  => 'kafka',
+      group  => 'kafka'
+    }
+
+    file { $install_directory:
+      ensure => directory,
+      owner  => 'kafka',
+      group  => 'kafka',
+      alias  => 'kafka-app-dir'
+    }
+
+    file { '/opt/kafka':
+      ensure => link,
+      target => $install_directory
+    }
+
+    file { '/opt/kafka/config':
+      ensure  => directory,
+      owner   => 'kafka',
+      group   => 'kafka',
+      require => File['/opt/kafka']
+    }
+
+    exec { 'download-kafka-package':
+      command => "wget -O ${package_dir}/${basefilename} ${package_url} 2> /dev/null",
+      path    => ['/usr/bin', '/bin'],
+      creates => "${package_dir}/${basefilename}",
+      require => [ File[$package_dir], Package['wget'] ]
+    }
+
+    exec { 'untar-kafka-package':
+      command => "tar xfvz ${package_dir}/${basefilename} -C ${install_directory} --strip-components=1",
+      creates => "${install_directory}/LICENSE",
+      alias   => 'untar-kafka',
+      require => [ Exec['download-kafka-package'], File['kafka-app-dir'] ],
+      user    => 'kafka',
+      path    => ['/bin', '/usr/bin', '/usr/sbin']
+    }
   }
 }

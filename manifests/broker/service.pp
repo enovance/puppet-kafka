@@ -20,7 +20,7 @@ class kafka::broker::service {
   }
 
   service { 'kafka':
-    ensure     => running,
+    ensure     => undef,
     enable     => true,
     hasstatus  => true,
     hasrestart => true,
